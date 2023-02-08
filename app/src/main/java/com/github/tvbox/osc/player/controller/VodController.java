@@ -110,14 +110,14 @@ public class VodController extends BaseController {
 //                        mBottomRoot.requestFocus();
 
                         // takagen99 : Revamp Show & Hide Logic with alpha
-                        mTopHide.setVisibility(GONE);
+//                        mTopHide.setVisibility(GONE);
                         mTopRoot.setVisibility(VISIBLE);
                         mTopRoot.setAlpha(0.0f);
                         mTopRoot.setTranslationY(-mTopRoot.getHeight() / 2);
                         mTopRoot.animate()
                                 .translationY(0)
                                 .alpha(1.0f)
-                                .setDuration(400)
+                                .setDuration(250)
                                 .setInterpolator(new DecelerateInterpolator())
                                 .setListener(null);
 
@@ -127,10 +127,11 @@ public class VodController extends BaseController {
                         mBottomRoot.animate()
                                 .translationY(0)
                                 .alpha(1.0f)
-                                .setDuration(400)
+                                .setDuration(250)
                                 .setInterpolator(new DecelerateInterpolator())
                                 .setListener(null);
                         mBottomRoot.requestFocus();
+                        mHandler.postDelayed(mUpdateLayout, 255);   // Workaround Fix : SurfaceView
 
                         // takagen99: Check if Touch Screen, show back button
                         if (((BaseActivity) mActivity).supportsTouch()) {
@@ -179,7 +180,7 @@ public class VodController extends BaseController {
                         mTopRoot.animate()
                                 .translationY(-mTopRoot.getHeight() / 2)
                                 .alpha(0.0f)
-                                .setDuration(400)
+                                .setDuration(250)
                                 .setInterpolator(new DecelerateInterpolator())
                                 .setListener(new AnimatorListenerAdapter() {
                                     @Override
@@ -193,7 +194,7 @@ public class VodController extends BaseController {
                         mBottomRoot.animate()
                                 .translationY(mBottomRoot.getHeight() / 2)
                                 .alpha(0.0f)
-                                .setDuration(400)
+                                .setDuration(250)
                                 .setInterpolator(new DecelerateInterpolator())
                                 .setListener(new AnimatorListenerAdapter() {
                                     @Override
@@ -301,6 +302,13 @@ public class VodController extends BaseController {
         }
     };
 
+    private final Runnable mUpdateLayout = new Runnable() {
+        @Override
+        public void run() {
+            mBottomRoot.requestLayout();
+        }
+    };
+
     @Override
     protected void initView() {
         super.initView();
@@ -326,11 +334,11 @@ public class VodController extends BaseController {
         mDialogVideoPauseBar = findViewWithTag("pausebar_video");
 
         // center back button
-        mBack = findViewById(R.id.play_back);
+        mBack = findViewById(R.id.tvBackButton);
 
         // bottom container
         mBottomRoot = findViewById(R.id.bottom_container);
-        mTime = findViewById(R.id.tv_time);
+        mTime = findViewById(R.id.tv_sys_time);
         mTimeEnd = findViewById(R.id.tv_time_end);
         mCurrentTime = findViewById(R.id.curr_time);
         mSeekBar = findViewById(R.id.seekBar);
@@ -425,6 +433,14 @@ public class VodController extends BaseController {
                 mIsDragging = false;
                 mControlWrapper.startProgress();
                 mControlWrapper.startFadeOut();
+            }
+        });
+        // Text : Share to other App -------------------------------------
+        mPlayTitle.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                FastClickCheckUtil.check(view);
+                listener.openVideo();
             }
         });
         // Button : Play PREV --------------------------------------------
@@ -906,6 +922,9 @@ public class VodController extends BaseController {
         void selectSubtitle();
 
         void selectAudioTrack();
+
+        void openVideo();
+
     }
 
     public void setListener(VodControlListener listener) {
@@ -1093,7 +1112,7 @@ public class VodController extends BaseController {
 
     void increasePlaySpeed(float speed) {
         if (speed == 5) {
-            speed = 0.5f;
+            speed = 0.25f;
         } else if (speed >= 2 & speed < 3) {
             speed += 0.5f;
         } else if (speed >= 3) {
@@ -1125,6 +1144,50 @@ public class VodController extends BaseController {
             mControlWrapper.setSpeed(value);
         } catch (JSONException err) {
             err.printStackTrace();
+        }
+    }
+
+    void increaseTime(String type) {
+        try {
+            int step = Hawk.get(HawkConfig.PLAY_TIME_STEP, 5);
+            int time = mPlayerConfig.getInt(type);
+            time += step;
+            if (time > 30 * 10)
+                time = 0;          // 600 = 10 mins
+            mPlayerConfig.put(type, time);
+
+//            // takagen99: Reference FongMi to get exact opening skip time
+//            int current = (int) mControlWrapper.getCurrentPosition();
+//            int duration = (int) mControlWrapper.getDuration();
+//            if (current > duration / 2) return;
+//            mPlayerConfig.put("st", current / 1000);
+
+            updatePlayerCfgView();
+            listener.updatePlayerCfg();
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void decreaseTime(String type) {
+        try {
+            int step = Hawk.get(HawkConfig.PLAY_TIME_STEP, 5);
+            int time = mPlayerConfig.getInt(type);
+            time -= step;
+            if (time < 0)
+                time = (30 * 10);
+            mPlayerConfig.put(type, time);
+
+//            // takagen99: Reference FongMi to get exact ending skip time
+//            int current = (int) mControlWrapper.getCurrentPosition();
+//            int duration = (int) mControlWrapper.getDuration();
+//            if (current < duration / 2) return;
+//            mPlayerConfig.put("et", (duration - current) / 1000);
+
+            updatePlayerCfgView();
+            listener.updatePlayerCfg();
+        } catch (JSONException e) {
+            e.printStackTrace();
         }
     }
 
@@ -1186,8 +1249,8 @@ public class VodController extends BaseController {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (isBottomVisible() & mFFwdBtn.isFocused() & (mParseRoot.getVisibility() == GONE)) {
-            int keyCode = event.getKeyCode();
+        int keyCode = event.getKeyCode();
+        if (isBottomVisible() && mFFwdBtn.isFocused()) {
             if (event.getAction() == MotionEvent.ACTION_DOWN) {
                 if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
                     try {
@@ -1205,7 +1268,22 @@ public class VodController extends BaseController {
                     }
                 }
             }
-
+        } else if (isBottomVisible() && mPlayerTimeStartBtn.isFocused()) {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                    increaseTime("st");
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    decreaseTime("st");
+                }
+            }
+        } else if (isBottomVisible() && mPlayerTimeSkipBtn.isFocused()) {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                    increaseTime("et");
+                } else if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    decreaseTime("et");
+                }
+            }
         }
         return super.dispatchKeyEvent(event);
     }
@@ -1297,7 +1375,7 @@ public class VodController extends BaseController {
 
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     public static void circularReveal(View v, int direction) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             int radius = Math.max(v.getWidth(), v.getHeight()) / 2;
             int width = 0;
             if (direction == 1) {

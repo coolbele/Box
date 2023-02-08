@@ -19,6 +19,10 @@ public class RefreshEvent {
     public static final int TYPE_DRIVE_REFRESH = 10;
     public static final int TYPE_LIVEPLAY_UPDATE = 11;
     public static final int TYPE_SUBTITLE_SIZE_CHANGE = 12;
+    public static final int TYPE_LIVE_URL_CHANGE = 13;
+    public static final int TYPE_EPG_URL_CHANGE = 14;
+    public static final int TYPE_APP_REFRESH = 15;
+    public static final int TYPE_FILTER_CHANGE = 16;
     public int type;
     public Object obj;
 
